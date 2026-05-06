@@ -101,8 +101,15 @@ public class ViewPageServlet extends HttpServlet {
  
             if (username != null && !username.equals(new String(""))){
                 if(Database.authenticateUser(username, password)){
-                    req.getSession(true).setAttribute("username", username);
-                    req.getSession().setAttribute("clicks", 0);
+                    HttpSession oldSession = req.getSession(false);
+                    if (oldSession != null) {
+                        oldSession.invalidate();
+                    }
+
+                    HttpSession session = req.getSession(true);
+                    session.setAttribute("username", username);
+                    session.setAttribute("clicks", 0);
+                    SecurityUtil.ensureCsrfToken(session);
                         
                     // redirect to main page
                     res.sendRedirect("/account");}

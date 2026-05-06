@@ -42,6 +42,7 @@ public class TransferPageServlet extends HttpServlet {
 			String result = (String) session.getAttribute("result");
 			String username = (String) session.getAttribute("username");
 			Integer credits = (Integer) session.getAttribute("credit");
+                        String csrfToken = SecurityUtil.ensureCsrfToken(session);
 		
 			// Set up the response content	
 			PrintWriter content = res.getWriter();
@@ -66,12 +67,13 @@ public class TransferPageServlet extends HttpServlet {
                         content.println("<header id='headerNav'>");
                         content.println("<div class='header-container'>");
                         content.println("<img src='./logo.png' alt='Logo' class='logo' width='150' height='50'>");
-                        content.println("<span class='hello'>Welcome, " + username + "</span>");
+                        content.println("<span class='hello'>Welcome, " + SecurityUtil.escapeHtml(username) + "</span>");
                         content.println("<nav class='navbar'>");
                         content.println("<a class='nav' href='account'>My Account</a>");
                         content.println("<a class='nav' href='transfer'>Transfer</a>");
                         content.println("<a class='nav' href='balance'>Customers</a>");
                         content.println("<form action='logout' method='POST' class='logoutForm'>");
+                        content.println("<input type='hidden' name='csrfToken' value='" + csrfToken + "'>");
                         content.println("<input value='Log Out' type='submit' class='logoutInput nav'>");
                         content.println("</form>");
                         content.println("</nav>");
@@ -94,10 +96,11 @@ public class TransferPageServlet extends HttpServlet {
 
                         // Begin the form
                         content.println("<form action=\"transfer\" method=\"POST\" accept-charset=\"utf-8\">");
+                        content.println("<input type=\"hidden\" name=\"csrfToken\" value=\"" + csrfToken + "\">");
 
                         // Display response message if available
                         if (result != null && !result.isEmpty()) {
-                            content.println("<div class=\"message\">" + result + "</div>");
+                            content.println("<div class=\"message\">" + SecurityUtil.escapeHtml(result) + "</div>");
                             session.setAttribute("result", "");
                         } else {
                             content.println("<div class=\"message\"></div>");
@@ -164,6 +167,8 @@ public class TransferPageServlet extends HttpServlet {
                 // If session is not valid, go back to welcome page
                 if(session == null){
                         res.sendRedirect("/welcome");
+                } else if (!SecurityUtil.isValidCsrfRequest(req)) {
+                        res.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid CSRF token.");
                 } else {
                         // Connect to the database, complete the transfer and store the result in session
                         session.setAttribute("result", "Fail to transfer.");

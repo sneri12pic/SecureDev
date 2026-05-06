@@ -40,6 +40,7 @@ public class CustomersListPageServlet extends HttpServlet {
             res.setStatus(HttpServletResponse.SC_OK);
 
             String username = (String) session.getAttribute("username");
+            String csrfToken = SecurityUtil.ensureCsrfToken(session);
 
             // Get the data from the database 
             ArrayList<String[]> customersList = Database.getCustomersList();
@@ -62,12 +63,13 @@ public class CustomersListPageServlet extends HttpServlet {
             content.println("<header id='headerNav'>");
             content.println("<div class='header-container'>");
             content.println("<img src='./logo.png' alt='Logo' class='logo' width='150' height='50'>");
-            content.println("<span class='hello'>Welcome, " + username + "</span>");
+            content.println("<span class='hello'>Welcome, " + SecurityUtil.escapeHtml(username) + "</span>");
             content.println("<nav class='navbar'>");
             content.println("<a class='nav' href='account'>My Account</a>");
             content.println("<a class='nav' href='transfer'>Transfer</a>");
             content.println("<a class='nav' href='balance'>Customers</a>");
             content.println("<form action='logout' method='POST' class='logoutForm'>");
+            content.println("<input type='hidden' name='csrfToken' value='" + csrfToken + "'>");
             content.println("<input value='Log Out' type='submit' class='logoutInput nav'>");
             content.println("</form>");
             content.println("</nav>");
@@ -98,7 +100,7 @@ public class CustomersListPageServlet extends HttpServlet {
                 content.println("<li class='ranking-item'>");
                 content.println("<div class='ranking-info'>");
                 content.println("<span class='ranking-num'>" + (i + 1) + "</span>");
-                content.println("<a href='account?username=" + inTableUsername + "' class='ranking-link'>" + inTableUsername + "</a>");
+                content.println("<a href='account?username=" + SecurityUtil.urlEncode(inTableUsername) + "' class='ranking-link'>" + SecurityUtil.escapeHtml(inTableUsername) + "</a>");
                 if (Database.getType(username).equals("admin")) {
                     content.println("<span class='ranking-credits'>" + customersList.get(i)[1] + "$</span>");
                 } else {
@@ -126,6 +128,10 @@ public class CustomersListPageServlet extends HttpServlet {
         // If no session, redirect to the welcome page; otherwise, proceed with updating account data
         if (session == null) {
             response.sendRedirect("/welcome");
+        } else if (!"admin".equals(Database.getType((String) session.getAttribute("username")))) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Only administrators can change user roles.");
+        } else if (!SecurityUtil.isValidCsrfRequest(request)) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid CSRF token.");
         } else {
             Enumeration<String> parameterNames = request.getParameterNames();
             while (parameterNames.hasMoreElements()) {

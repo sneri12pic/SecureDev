@@ -3,6 +3,8 @@ import java.io.PrintWriter;
 import java.io.BufferedReader;
 import java.util.List;
 import java.io.File;
+import java.util.Locale;
+import java.util.UUID;
 
 
 import javax.servlet.http.HttpServlet;
@@ -51,6 +53,7 @@ public class AccountPageServlet extends HttpServlet {
 			String username = (String) session.getAttribute("username");
 			String thisUsername = req.getParameter("username");
 			String pageUsername = username;
+            String csrfToken = SecurityUtil.ensureCsrfToken(session);
 			if(thisUsername != null && !thisUsername.equals(username)){
 				pageUsername = thisUsername;
 			}
@@ -66,6 +69,7 @@ public class AccountPageServlet extends HttpServlet {
             content.println("<head>");
             content.println("<meta charset='UTF-8'>");
             content.println("<meta name='viewport' content='width=device-width, initial-scale=1.0'>");
+            content.println("<meta name='csrf-token' content='" + csrfToken + "'>");
             content.println("<title>Account Page</title>");
             content.println("<link rel='stylesheet' type='text/css' href='AccountPage.css'>");
             content.println("<link rel='stylesheet' type='text/css' href='Navbar.css'>");
@@ -76,12 +80,13 @@ public class AccountPageServlet extends HttpServlet {
             content.println("<header id='headerNav'>");
             content.println("<div class='header-container'>");
             content.println("<img src='./logo.png' alt='Logo' class='logo' width='150' height='50'>");
-            content.println("<span class='hello'>Welcome, " + username + "</span>");
+            content.println("<span class='hello'>Welcome, " + SecurityUtil.escapeHtml(username) + "</span>");
             content.println("<nav class='navbar'>");
             content.println("<a class='nav' href='account'>My Account</a>");
             content.println("<a class='nav' href='transfer'>Transfer</a>");
             content.println("<a class='nav' href='balance'>Customers</a>");
             content.println("<form action='logout' method='POST' class='logoutForm'>");
+            content.println("<input type='hidden' name='csrfToken' value='" + csrfToken + "'>");
             content.println("<input value='Log Out' type='submit' class='logoutInput nav'>");
             content.println("</form>");
             content.println("</nav>");
@@ -92,7 +97,7 @@ public class AccountPageServlet extends HttpServlet {
             // Main Content Section
             content.println("<main>");
             content.println("<section class='profile-section'>");
-            content.println("<h1>Welcome to " + pageUsername + "'s Page!</h1>");
+            content.println("<h1>Welcome to " + SecurityUtil.escapeHtml(pageUsername) + "'s Page!</h1>");
             content.println("<div class='wrapper'>");
                     
             content.println("<div class='horizontal-container'>");
@@ -100,29 +105,29 @@ public class AccountPageServlet extends HttpServlet {
             if (Database.getType(username).equals("admin") || username.equals(pageUsername)) {
                 // Balance Section
                 content.println("<div class='container balance-section'>");
-                content.println("<h2>" + pageUsername + "'s Balance</h2>");
+                content.println("<h2>" + SecurityUtil.escapeHtml(pageUsername) + "'s Balance</h2>");
                 content.println("<p class='balance-amount'>" + Database.getBalance(pageUsername) + " $</p>");
                 content.println("</div>");
             }
 
             // Card Number Section
             content.println("<div class='container card-number-section'>");
-            content.println("<h2>" + pageUsername + "'s Card Number</h2>");
-            content.println("<p class='card-number'>" + Database.getCardId(pageUsername) + "</p>");
+            content.println("<h2>" + SecurityUtil.escapeHtml(pageUsername) + "'s Card Number</h2>");
+            content.println("<p class='card-number'>" + SecurityUtil.escapeHtml(Database.getCardId(pageUsername)) + "</p>");
             content.println("</div>");
                     
                     
             // Profile Section
             content.println("<div class='container'>");
-            content.println("<h2>" + pageUsername + "'s Profile</h2>");
+            content.println("<h2>" + SecurityUtil.escapeHtml(pageUsername) + "'s Profile</h2>");
                     
             // Profile Picture Section
             String profilePicture = Database.getProfilePicture(pageUsername);
             String defaultImage = "./avatar.png";
-            String imageUrl = (profilePicture == null || profilePicture.isEmpty()) ? defaultImage : "http://localhost:15000/" + profilePicture;
+            String imageUrl = SecurityUtil.isSafeStoredPath(profilePicture) ? "./" + profilePicture : defaultImage;
                     
             content.println("<div class='iframe-container'>");
-            content.println("<iframe src='" + imageUrl + "' alt='Profile Picture'></iframe>");
+            content.println("<img src='" + SecurityUtil.escapeHtml(imageUrl) + "' alt='Profile Picture'>");
             content.println("</div>");
             
 			if(thisUsername == null || thisUsername.equals(username)){
@@ -140,9 +145,9 @@ public class AccountPageServlet extends HttpServlet {
 			if(profile == null){
 				profile = "";
 			}
-        	content.println("<div class=\"sevralLine\" id=\"profile\" >" + profile + "</div>");
+        	content.println("<div class=\"sevralLine\" id=\"profile\" >" + SecurityUtil.escapeHtml(profile) + "</div>");
 			if(thisUsername == null || thisUsername.equals(username)){
-        		content.println("<textarea placeholder=\"Change Your Profile\" class=\"inputField\">" + profile  + "</textarea>");
+        		content.println("<textarea placeholder=\"Change Your Profile\" class=\"inputField\">" + SecurityUtil.escapeHtml(profile)  + "</textarea>");
 				content.println("<button id=\"submit\">Edit Profile Description</button>");
 			}
     		content.println("</div>");
@@ -183,12 +188,13 @@ public class AccountPageServlet extends HttpServlet {
             String username = (String) session.getAttribute("username");
 
             // Handle multipart form-data for profile picture upload
-            if (req.getContentType().startsWith("multipart/form-data")) {
+            if (!SecurityUtil.isValidCsrfRequest(req)) {
+                res.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid CSRF token.");
+            } else if (req.getContentType() != null && req.getContentType().startsWith("multipart/form-data")) {
                 handleFileUpload(req, res, username);
             } else {
                 // Handle regular form data (profile text update)
-                String params = getRequestData(req);
-                String value = params.substring("value=".length(), params.length());
+                String value = req.getParameter("value");
                 boolean result = Database.addAccountInfo(username, value);
 
                 // Respond with success or failure
@@ -227,19 +233,33 @@ public class AccountPageServlet extends HttpServlet {
             for (FileItem item : items) {
                 if (!item.isFormField() && item.getFieldName().equals("profilePic")) {
                     // Get the uploaded file name
-                    String fileName = item.getName();
+                    String fileName = new File(item.getName()).getName();
+                    String contentType = item.getContentType();
+                    String lowerFileName = fileName.toLowerCase(Locale.ROOT);
+                    String extension = "";
+                    int dotIndex = lowerFileName.lastIndexOf('.');
+                    if (dotIndex >= 0) {
+                        extension = lowerFileName.substring(dotIndex + 1);
+                    }
+
+                    boolean allowedExtension = extension.matches("png|jpg|jpeg|gif|webp");
+                    boolean allowedMime = contentType != null && contentType.toLowerCase(Locale.ROOT).startsWith("image/");
+                    if (!allowedExtension || !allowedMime || item.getSize() > 2 * 1024 * 1024) {
+                        res.sendError(HttpServletResponse.SC_BAD_REQUEST, "Only image uploads under 2MB are allowed.");
+                        return;
+                    }
                 
-                    // Sanitize the file name (remove unwanted characters)
-                    String sanitizedFileName = fileName.replaceAll("[^a-zA-Z0-9.-]", "_");
+                    String sanitizedFileName = UUID.randomUUID().toString() + "." + extension;
 
                     // Get the current project path
                     String projectPath = System.getProperty("user.dir");
 
                     // Define the path where the file will be saved
-                    String filePath = projectPath + File.separator + "WebContext" + File.separator + sanitizedFileName;
+                    File webContextDir = new File(projectPath, "WebContext");
+                    File uploadDir = new File(webContextDir, "uploads");
+                    String filePath = uploadDir.getCanonicalPath() + File.separator + sanitizedFileName;
 
                     // Create the directory if it doesn't exist
-                    File uploadDir = new File(projectPath);
                     if (!uploadDir.exists()) {
                         uploadDir.mkdirs();  // Create the directory if it doesn't exist
                     }
@@ -251,7 +271,7 @@ public class AccountPageServlet extends HttpServlet {
                     item.write(uploadedFile);
 
                     // Update the user's profile with the image path in the database
-                    Database.updateProfilePicture(username, sanitizedFileName);
+                    Database.updateProfilePicture(username, "uploads/" + sanitizedFileName);
                 
                     // Send a success response
                     res.getWriter().print("Profile picture uploaded successfully. refresh the page");
@@ -259,7 +279,7 @@ public class AccountPageServlet extends HttpServlet {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            res.getWriter().print("Error uploading profile picture: " + e.getMessage());
+            res.getWriter().print("Error uploading profile picture.");
         }
     }
 

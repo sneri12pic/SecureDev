@@ -23,10 +23,13 @@ public class Database {
      * Authenticate the user with username and password
      */
     public static boolean authenticateUser(String username, String password) {
-        String query = "SELECT * FROM LoginInformation WHERE username = '" + username + "' AND password = '" + password + "'";
+        String query = "SELECT 1 FROM LoginInformation WHERE username = ? AND password = ?";
         try (Connection conn = getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
-             ResultSet rs = pstmt.executeQuery();
+
+            pstmt.setString(1, username);
+            pstmt.setString(2, password);
+            ResultSet rs = pstmt.executeQuery();
 
             return rs.next();
         } catch (SQLException e) {
@@ -114,7 +117,7 @@ public class Database {
      * Get customer lists
      */
     public static ArrayList<String[]> getCustomersList() {
-        String query = "SELECT username, balance FROM LoginInformation DESC LIMIT ?";
+        String query = "SELECT username, balance FROM LoginInformation ORDER BY balance DESC LIMIT ?";
         ArrayList<String[]> customersList = new ArrayList<>();
 
         try (Connection conn = getConnection();
@@ -278,10 +281,16 @@ public class Database {
      * Add or update type information
      */
     public static boolean setUserType(String username, String type) {
-        String query = "UPDATE LoginInformation SET type = '" + type + "' WHERE username = '" + username + "'";
+        if (!"admin".equals(type) && !"normal".equals(type)) {
+            return false;
+        }
+
+        String query = "UPDATE LoginInformation SET type = ? WHERE username = ?";
         try (Connection conn = getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
 
+            pstmt.setString(1, type);
+            pstmt.setString(2, username);
             int rowsUpdated = pstmt.executeUpdate();
             return rowsUpdated > 0;
         } catch (SQLException e) {
@@ -294,8 +303,8 @@ public class Database {
      * Update profile picture
      */
     public static boolean updateProfilePicture(String username, String imageFilePath) {
-        if (imageFilePath.endsWith(".exe")) {
-            System.out.println("File type .exe is not allowed.");
+        if (!SecurityUtil.isSafeStoredPath(imageFilePath)) {
+            System.out.println("Unsafe profile image path rejected.");
             return false;
         }
 

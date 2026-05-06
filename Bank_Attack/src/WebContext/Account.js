@@ -20,11 +20,14 @@ var buttonEdit = document.querySelector("#edit");
 // Select the file input and the upload button
 var buttonUploadPic = document.querySelector("#uploadPic");
 var profilePicInput = document.querySelector("#profilePic");
+var csrfTokenMeta = document.querySelector("meta[name='csrf-token']");
+var csrfToken = csrfTokenMeta ? csrfTokenMeta.getAttribute("content") : "";
 
 /*
  * This function is called when the upload button is clicked.
  * It checks the file type and sends the image to the server via AJAX
  */
+if (buttonUploadPic && profilePicInput) {
 buttonUploadPic.addEventListener("click", function (event) {
 	event.preventDefault();  // Prevent the form from submitting traditionally
 
@@ -32,7 +35,7 @@ buttonUploadPic.addEventListener("click", function (event) {
 	if (file) {
 		// Check if the file is an image (not an .exe file)
 		var fileType = file.type.split('/')[0]; // Get the file type (e.g., "image")
-		if (fileType === "exe") {
+		if (fileType !== "image") {
 			alert("Please upload a valid image file.");
 		} else {
 			// Send the file to the server
@@ -44,6 +47,7 @@ buttonUploadPic.addEventListener("click", function (event) {
 		alert("No file selected.");
 	}
 });
+}
 
 /*
  * This function handles the AJAX request to upload the image.
@@ -52,6 +56,7 @@ buttonUploadPic.addEventListener("click", function (event) {
 function ajaxUploadRequest(reqURL, formData) {
 	var xhr = new XMLHttpRequest();
 	xhr.open("POST", reqURL, true);
+	xhr.setRequestHeader("X-CSRF-Token", csrfToken);
 
 	// Send the form data (including the file)
 	xhr.onreadystatechange = function () {
@@ -71,6 +76,7 @@ var profileField = document.querySelector("#profile");
  * This function is called when the submit button is cliekd.
  * It will send a POST request with content of profile using Ajax
  */
+if (buttonSubmit) {
 buttonSubmit.addEventListener("click", function () {
 	var x = document.querySelector("textarea").value;
 	//console.log(x.replace(new RegExp('\n', 'g'), "<br>"));
@@ -82,6 +88,7 @@ buttonSubmit.addEventListener("click", function () {
 	this.style.display = "none";*/
 	ajaxSyncRequest("/account", x);
 });
+}
 
 
 /*
@@ -105,7 +112,7 @@ function ajaxSyncRequest(reqURL, parameter) {
 		if (this.readyState === XMLHttpRequest.DONE && this.status === 200) {
 			console.log(xhs.responseText);
 			console.log(parameter);
-			document.querySelector("#profile").innerHTML = parameter;
+			document.querySelector("#profile").textContent = parameter;
 			alert("Profile Description updated.");
 		}
 		else {
@@ -114,5 +121,5 @@ function ajaxSyncRequest(reqURL, parameter) {
 
 
 	};
-	xhs.send("value=" + parameter);
+	xhs.send("csrfToken=" + encodeURIComponent(csrfToken) + "&value=" + encodeURIComponent(parameter));
 }

@@ -22,7 +22,7 @@ import org.eclipse.jetty.servlet.ServletHolder;
 public class TargetServer {
 
 	// number of seconds before session expires
-	private static final int SESSION_TIMEOUT = 7200;
+	private static final int SESSION_TIMEOUT = 900;
 	// number of seconds between checking for expired sessions
 	private static final int SCAVENGE_INTERVAL = 20;
 
@@ -56,6 +56,7 @@ public class TargetServer {
 		// set session timeout
 		SessionHandler sessions = context.getSessionHandler();
 		sessions.setMaxInactiveInterval(SESSION_TIMEOUT);
+		sessions.getSessionCookieConfig().setHttpOnly(true);
 		// configure scavenger to detect expired sessions
 		SessionIdManager idManager = new DefaultSessionIdManager(server);
 		HouseKeeper scavenger = new HouseKeeper();
@@ -71,7 +72,7 @@ public class TargetServer {
 		DefaultServlet defaultServlet = new DefaultServlet();
 		ServletHolder holderPwd = new ServletHolder("default", defaultServlet);
 		holderPwd.setInitParameter("resourceBase", "./WebContext/");
-		holderPwd.setInitParameter("dirAllowed", "true");
+		holderPwd.setInitParameter("dirAllowed", "false");
 		context.addServlet(holderPwd, "/*");
 
 		// add eight servlets

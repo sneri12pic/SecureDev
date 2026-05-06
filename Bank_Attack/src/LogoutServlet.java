@@ -23,7 +23,12 @@ public class LogoutServlet extends HttpServlet {
 	 */
 	@Override
 	protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException, ServletException {
-		req.getSession().invalidate();
+		if (!SecurityUtil.isValidCsrfRequest(req)) {
+			res.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid CSRF token.");
+			return;
+		}
+
+		req.getSession(false).invalidate();
 		
 		res.sendRedirect("/welcome");
 	}
