@@ -14,7 +14,7 @@ The coursework is marked as:
 For a realistic 65+ target, the safest route is:
 
 - Make the five BankWebsite mitigations practical and easy to evidence.
-- Use the CW1 planned extra vulnerabilities: `CWE-22 Path Traversal` and `CWE-306 Missing Authentication for Critical Function`.
+- Use two integrated extra vulnerabilities: hidden form-field trust/parameter tampering and `CWE-306 Missing Authentication for Critical Function`.
 - Integrate both into BankWebsite, because that protects the 10 integration marks and avoids the separate-application cap.
 - Record the mandatory video. Without it, the two additional sections can receive 0.
 
@@ -51,32 +51,47 @@ Suggested evidence:
 - Upload: `.html` file upload is rejected; normal `.png` or `.jpg` upload still works.
 - Session: after login, session is regenerated, cookie is HttpOnly, timeout is 15 minutes, and directory listing no longer works.
 
-## Additional Vulnerabilities To Build Next
+## Additional Vulnerabilities Implemented For Part 2
 
-Use the CW1 plan:
+The current Part 2 vulnerable build uses:
 
-1. `CWE-22 Path Traversal`
-   - Add a receipt feature to BankWebsite.
-   - Normal behaviour: logged-in user views a transfer receipt from a receipts folder.
-   - Vulnerable behaviour: attacker changes a file parameter such as `../../users.db` or `../create_db.sql` and reads a file outside the receipts folder.
-   - Mitigation: canonical path check, allow-list receipt IDs, block path separators, store/read only from a fixed receipts directory.
+1. Hidden form-field trust / parameter tampering
+   - Location: `TransferPageServlet.java`, `Database.java`.
+   - Normal behaviour: logged-in user enters card `222222` and amount `10`; app shows a confirmation page with a `2` dollar transfer fee; confirming the transfer deducts `12` dollars from the sender and adds `10` dollars to the recipient.
+   - Vulnerable behaviour: attacker edits the hidden `fee` form field before confirming. For example, changing `fee` from `2` to `-1000` causes the app to trust the tampered fee and credit the sender instead of charging the correct fee.
+   - Attack input on the confirmation page:
+     ```javascript
+     document.querySelector('input[name="fee"]').value = "-1000";
+     document.querySelector('form').submit();
+     ```
+   - Clear impact: result message shows `Success! Fee charged: -1000$`, sender balance increases, and recipient still receives the transfer amount.
+   - Part 3 mitigation later: do not trust hidden fee values; calculate the fee on the server during confirmation; store pending transfer details server-side or revalidate amount/card/fee from trusted rules.
 
 2. `CWE-306 Missing Authentication for Critical Function`
-   - Add an admin password reset page.
-   - Normal behaviour: logged-in admin resets a user's password.
-   - Vulnerable behaviour: attacker sends a direct POST to the reset endpoint without a valid authenticated admin session.
-   - Mitigation: require session, require admin role, require CSRF token, validate target user.
+   - Location: `AdminPasswordResetServlet.java`, `Database.java`, `TargetServer.java`.
+   - Normal behaviour: admin opens `/admin-reset` and resets a user's password.
+   - Vulnerable behaviour: attacker sends a direct POST to `/admin-reset` without being logged in as an admin, and the password is still changed.
+   - Attack input while logged out:
+     ```javascript
+     fetch("/admin-reset", {
+       method: "POST",
+       headers: {"Content-Type": "application/x-www-form-urlencoded"},
+       body: "username=user3&newPassword=hacked123"
+     }).then(r => r.text()).then(console.log);
+     ```
+   - Clear impact: response says `Password reset for user3`; attacker can then log in as `user3 / hacked123`.
+   - Part 3 mitigation later: require authenticated session, require `admin` role, require CSRF token, and validate target user/password rules.
 
 ## Video Script
 
 Keep the video under 6 minutes total:
 
-- Path Traversal, 3 minutes max:
-  - Show normal receipt view.
-  - Show attack payload and exposed file.
-  - Explain canonical path/allow-list mitigation.
-  - Repeat attack and show failure.
-  - Show normal receipt view still works.
+- Hidden form-field trust, 3 minutes max:
+  - Show normal transfer confirmation with card `222222`, amount `10`, fee `2`, total debit `12`.
+  - Confirm normally or explain the expected normal debit.
+  - Repeat from the confirmation page and change hidden `fee` to `-1000`.
+  - Show the transfer succeeds with `Fee charged: -1000$` and the balance changes incorrectly.
+  - After Part 3 mitigation, repeat the same tampering and show the server still charges the correct fee or rejects the request.
 
 - Missing Authentication, 3 minutes max:
   - Show admin reset works normally.
@@ -103,6 +118,6 @@ References to include:
 - CWE-352 Cross-Site Request Forgery
 - CWE-384 Session Fixation
 - CWE-434 Dangerous File Upload
-- CWE-22 Path Traversal
+- SEI CERT IDS14-J: Do not trust the contents of hidden form fields
 - CWE-306 Missing Authentication for Critical Function
 - OWASP Cheat Sheet Series for SQL Injection Prevention, XSS Prevention, CSRF Prevention, File Upload, Authentication, and Session Management

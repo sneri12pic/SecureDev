@@ -114,6 +114,63 @@ public class Database {
     }
 
     /*
+     * Transfer balance from one user to another and charge a transfer fee.
+     * Coursework 2 additional vulnerability: the servlet currently trusts a fee
+     * value submitted in a hidden form field.
+     */
+    public static int transferBalanceWithFee(String from, String to, int fromBalance, int addBalance, int fee) {
+        int totalDebit = addBalance + fee;
+        int deductBalance = -totalDebit;
+
+        try (Connection conn = getConnection()) {
+            conn.setAutoCommit(false);
+
+            String updateFrom = "UPDATE LoginInformation SET balance = balance + ? WHERE cardId = ?";
+            String updateTo = "UPDATE LoginInformation SET balance = balance + ? WHERE cardId = ?";
+
+            try (PreparedStatement pstmtFrom = conn.prepareStatement(updateFrom);
+                 PreparedStatement pstmtTo = conn.prepareStatement(updateTo)) {
+
+                pstmtFrom.setInt(1, deductBalance);
+                pstmtFrom.setString(2, from);
+                pstmtFrom.executeUpdate();
+
+                pstmtTo.setInt(1, addBalance);
+                pstmtTo.setString(2, to);
+                pstmtTo.executeUpdate();
+
+                conn.commit();
+                return fromBalance - totalDebit;
+            } catch (SQLException e) {
+                conn.rollback();
+                e.printStackTrace();
+                return -1;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return -1;
+        }
+    }
+
+    /*
+     * Update a user's password.
+     */
+    public static boolean updatePassword(String username, String password) {
+        String query = "UPDATE LoginInformation SET password = ? WHERE username = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+            pstmt.setString(1, password);
+            pstmt.setString(2, username);
+            int rowsUpdated = pstmt.executeUpdate();
+            return rowsUpdated > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /*
      * Get customer lists
      */
     public static ArrayList<String[]> getCustomersList() {

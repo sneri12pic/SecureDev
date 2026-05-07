@@ -13,6 +13,7 @@ import javax.servlet.ServletException;
  * @author Emma He
  */
 public class TransferPageServlet extends HttpServlet {
+        private static final int TRANSFER_FEE = 2;
         
         /*
          * (non-Javadoc)
@@ -97,6 +98,7 @@ public class TransferPageServlet extends HttpServlet {
                         // Begin the form
                         content.println("<form action=\"transfer\" method=\"POST\" accept-charset=\"utf-8\">");
                         content.println("<input type=\"hidden\" name=\"csrfToken\" value=\"" + csrfToken + "\">");
+                        content.println("<input type=\"hidden\" name=\"action\" value=\"preview\">");
 
                         // Display response message if available
                         if (result != null && !result.isEmpty()) {
@@ -154,41 +156,95 @@ public class TransferPageServlet extends HttpServlet {
                 // Get two parameters: the user to whom credits are trasferred and the number of credits to transfer
                 String to = req.getParameter("to");
                 String transferAmount = req.getParameter("transferAmount");
-                int addBalance = 0;
-                if(transferAmount != null){
-                        try {
-                                addBalance = Integer.parseInt(transferAmount);
-                        } catch (Exception ex){
-                                addBalance = 0;
-                        }
-                }
-                int deductBalance = 0 - addBalance;
+                int addBalance = parseIntOrZero(transferAmount);
 
                 // If session is not valid, go back to welcome page
                 if(session == null){
                         res.sendRedirect("/welcome");
                 } else if (!SecurityUtil.isValidCsrfRequest(req)) {
                         res.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid CSRF token.");
+                } else if ("confirm".equals(req.getParameter("action"))) {
+                        processConfirmedTransfer(req, res, session, to, addBalance);
                 } else {
-                        // Connect to the database, complete the transfer and store the result in session
-                        session.setAttribute("result", "Fail to transfer.");
-                        String from;
-                        boolean isToCardExist = false;
-                        from = (String) session.getAttribute("username");
-                        isToCardExist = Database.isCardExist(to);
-                        String fromCard = Database.getCardId(from);
-                        int fromBalance = Database.getBalance(from);
-                        if(isToCardExist && addBalance != 0 && to != null && addBalance > 0 && from != null && !fromCard.equals(to) && fromBalance >= addBalance){
-                                int result = Database.transferBalance(fromCard, to, fromBalance, addBalance);
-                                if(result >= 0){
-                                        session.setAttribute("result", "Success!");
-                                        if (from.equals((String) session.getAttribute("username"))){
-                                                session.setAttribute("credit", result);
-                                        }
-                                }
-                        }
-                        res.sendRedirect("/transfer");
+                        renderTransferConfirmation(res, session, to, addBalance);
                 }
 
 	}
+
+        private void renderTransferConfirmation(HttpServletResponse res, HttpSession session, String to, int addBalance) throws IOException {
+                String username = (String) session.getAttribute("username");
+                String fromCard = Database.getCardId(username);
+                int fromBalance = Database.getBalance(username);
+                boolean validTransfer = Database.isCardExist(to) && addBalance > 0 && !fromCard.equals(to)
+                        && fromBalance >= addBalance + TRANSFER_FEE;
+
+                PrintWriter content = res.getWriter();
+                content.println("<!DOCTYPE html>");
+                content.println("<html lang='en'>");
+                content.println("<head>");
+                content.println("<meta charset='UTF-8'>");
+                content.println("<meta name='viewport' content='width=device-width, initial-scale=1.0'>");
+                content.println("<title>Confirm Transfer</title>");
+                content.println("<link rel=\"stylesheet\" type=\"text/css\" href=\"./Transfer.css\">");
+                content.println("</head>");
+                content.println("<body>");
+                content.println("<h1>Confirm Transfer</h1>");
+
+                if (!validTransfer) {
+                        content.println("<div id=\"container\">");
+                        content.println("<div class=\"message\">Transfer details are invalid.</div>");
+                        content.println("<a href=\"transfer\">Back to transfer</a>");
+                        content.println("</div>");
+                        content.println("</body></html>");
+                        return;
+                }
+
+                content.println("<div id=\"container\">");
+                content.println("<p>To card: " + SecurityUtil.escapeHtml(to) + "</p>");
+                content.println("<p>Transfer amount: " + addBalance + "$</p>");
+                content.println("<p>Transfer fee: " + TRANSFER_FEE + "$</p>");
+                content.println("<p>Total debit: " + (addBalance + TRANSFER_FEE) + "$</p>");
+                content.println("<form action=\"transfer\" method=\"POST\">");
+                content.println("<input type=\"hidden\" name=\"csrfToken\" value=\"" + SecurityUtil.ensureCsrfToken(session) + "\">");
+                content.println("<input type=\"hidden\" name=\"action\" value=\"confirm\">");
+                content.println("<input type=\"hidden\" name=\"to\" value=\"" + SecurityUtil.escapeHtml(to) + "\">");
+                content.println("<input type=\"hidden\" name=\"transferAmount\" value=\"" + addBalance + "\">");
+                content.println("<input type=\"hidden\" name=\"fee\" value=\"" + TRANSFER_FEE + "\">");
+                content.println("<button id=\"submitButton\" type=\"submit\">Confirm Transfer</button>");
+                content.println("</form>");
+                content.println("</div>");
+                content.println("</body></html>");
+        }
+
+        private void processConfirmedTransfer(HttpServletRequest req, HttpServletResponse res, HttpSession session, String to, int addBalance) throws IOException {
+                session.setAttribute("result", "Fail to transfer.");
+                String from = (String) session.getAttribute("username");
+                String fromCard = Database.getCardId(from);
+                int fromBalance = Database.getBalance(from);
+
+                // Intentionally vulnerable for Part 2: do not trust hidden form fields.
+                int fee = parseIntOrZero(req.getParameter("fee"));
+                int totalDebit = addBalance + fee;
+
+                if(Database.isCardExist(to) && addBalance > 0 && to != null && from != null
+                                && !fromCard.equals(to) && fromBalance >= totalDebit){
+                        int result = Database.transferBalanceWithFee(fromCard, to, fromBalance, addBalance, fee);
+                        if(result >= 0){
+                                session.setAttribute("result", "Success! Fee charged: " + fee + "$");
+                                session.setAttribute("credit", result);
+                        }
+                }
+                res.sendRedirect("/transfer");
+        }
+
+        private int parseIntOrZero(String value) {
+                if(value != null){
+                        try {
+                                return Integer.parseInt(value);
+                        } catch (Exception ex){
+                                return 0;
+                        }
+                }
+                return 0;
+        }
 }
