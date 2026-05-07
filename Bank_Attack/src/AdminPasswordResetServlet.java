@@ -5,6 +5,7 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 
 /**
  * Coursework 2 additional vulnerability: Missing Authentication for Critical
@@ -14,8 +15,15 @@ import javax.servlet.http.HttpServletResponse;
 public class AdminPasswordResetServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException, ServletException {
+        HttpSession session = req.getSession(false);
+        if (!isAdminSession(session)) {
+            res.sendError(HttpServletResponse.SC_FORBIDDEN, "Administrator access required.");
+            return;
+        }
+
         res.setContentType("text/html; charset=utf-8");
         res.setStatus(HttpServletResponse.SC_OK);
+        String csrfToken = SecurityUtil.ensureCsrfToken(session);
 
         PrintWriter content = res.getWriter();
         content.println("<!DOCTYPE html>");
@@ -39,6 +47,7 @@ public class AdminPasswordResetServlet extends HttpServlet {
         content.println("<h1>Admin Password Reset</h1>");
         content.println("<p>Reset a user password from this administrative screen.</p>");
         content.println("<form action=\"admin-reset\" method=\"POST\" accept-charset=\"utf-8\">");
+        content.println("<input type=\"hidden\" name=\"csrfToken\" value=\"" + csrfToken + "\">");
         content.println("<label for=\"username\">Username</label>");
         content.println("<input id=\"username\" type=\"text\" name=\"username\">");
         content.println("<label for=\"newPassword\">New password</label>");
@@ -52,6 +61,16 @@ public class AdminPasswordResetServlet extends HttpServlet {
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {
+        HttpSession session = req.getSession(false);
+        if (!isAdminSession(session)) {
+            res.sendError(HttpServletResponse.SC_FORBIDDEN, "Administrator access required.");
+            return;
+        }
+        if (!SecurityUtil.isValidCsrfRequest(req)) {
+            res.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid CSRF token.");
+            return;
+        }
+
         res.setContentType("text/html; charset=utf-8");
         res.setStatus(HttpServletResponse.SC_OK);
 
@@ -59,7 +78,7 @@ public class AdminPasswordResetServlet extends HttpServlet {
         String newPassword = req.getParameter("newPassword");
 
         boolean result = false;
-        if (username != null && newPassword != null && !username.isEmpty() && !newPassword.isEmpty()) {
+        if (username != null && newPassword != null && !username.isEmpty() && newPassword.length() >= 8) {
             result = Database.updatePassword(username, newPassword);
         }
 
@@ -88,5 +107,14 @@ public class AdminPasswordResetServlet extends HttpServlet {
         content.println("</main>");
         content.println("</body>");
         content.println("</html>");
+    }
+
+    private boolean isAdminSession(HttpSession session) {
+        if (session == null) {
+            return false;
+        }
+
+        String username = (String) session.getAttribute("username");
+        return username != null && "admin".equals(Database.getType(username));
     }
 }

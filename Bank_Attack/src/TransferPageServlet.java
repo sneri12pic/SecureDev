@@ -14,6 +14,8 @@ import javax.servlet.ServletException;
  */
 public class TransferPageServlet extends HttpServlet {
         private static final int TRANSFER_FEE = 2;
+        private static final String PENDING_TRANSFER_TO = "pendingTransferTo";
+        private static final String PENDING_TRANSFER_AMOUNT = "pendingTransferAmount";
         
         /*
          * (non-Javadoc)
@@ -164,7 +166,7 @@ public class TransferPageServlet extends HttpServlet {
                 } else if (!SecurityUtil.isValidCsrfRequest(req)) {
                         res.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid CSRF token.");
                 } else if ("confirm".equals(req.getParameter("action"))) {
-                        processConfirmedTransfer(req, res, session, to, addBalance);
+                        processConfirmedTransfer(res, session);
                 } else {
                         renderTransferConfirmation(res, session, to, addBalance);
                 }
@@ -191,6 +193,7 @@ public class TransferPageServlet extends HttpServlet {
                 content.println("<h1>Confirm Transfer</h1>");
 
                 if (!validTransfer) {
+                        clearPendingTransfer(session);
                         content.println("<div id=\"container\">");
                         content.println("<div class=\"message\">Transfer details are invalid.</div>");
                         content.println("<a href=\"transfer\">Back to transfer</a>");
@@ -198,6 +201,9 @@ public class TransferPageServlet extends HttpServlet {
                         content.println("</body></html>");
                         return;
                 }
+
+                session.setAttribute(PENDING_TRANSFER_TO, to);
+                session.setAttribute(PENDING_TRANSFER_AMOUNT, addBalance);
 
                 content.println("<div id=\"container\">");
                 content.println("<p>To card: " + SecurityUtil.escapeHtml(to) + "</p>");
@@ -207,23 +213,22 @@ public class TransferPageServlet extends HttpServlet {
                 content.println("<form action=\"transfer\" method=\"POST\">");
                 content.println("<input type=\"hidden\" name=\"csrfToken\" value=\"" + SecurityUtil.ensureCsrfToken(session) + "\">");
                 content.println("<input type=\"hidden\" name=\"action\" value=\"confirm\">");
-                content.println("<input type=\"hidden\" name=\"to\" value=\"" + SecurityUtil.escapeHtml(to) + "\">");
-                content.println("<input type=\"hidden\" name=\"transferAmount\" value=\"" + addBalance + "\">");
-                content.println("<input type=\"hidden\" name=\"fee\" value=\"" + TRANSFER_FEE + "\">");
                 content.println("<button id=\"submitButton\" type=\"submit\">Confirm Transfer</button>");
                 content.println("</form>");
                 content.println("</div>");
                 content.println("</body></html>");
         }
 
-        private void processConfirmedTransfer(HttpServletRequest req, HttpServletResponse res, HttpSession session, String to, int addBalance) throws IOException {
+        private void processConfirmedTransfer(HttpServletResponse res, HttpSession session) throws IOException {
                 session.setAttribute("result", "Fail to transfer.");
                 String from = (String) session.getAttribute("username");
                 String fromCard = Database.getCardId(from);
                 int fromBalance = Database.getBalance(from);
+                String to = (String) session.getAttribute(PENDING_TRANSFER_TO);
+                Object pendingAmount = session.getAttribute(PENDING_TRANSFER_AMOUNT);
+                int addBalance = pendingAmount instanceof Integer ? (Integer) pendingAmount : 0;
 
-                // Intentionally vulnerable for Part 2: do not trust hidden form fields.
-                int fee = parseIntOrZero(req.getParameter("fee"));
+                int fee = TRANSFER_FEE;
                 int totalDebit = addBalance + fee;
 
                 if(Database.isCardExist(to) && addBalance > 0 && to != null && from != null
@@ -234,7 +239,13 @@ public class TransferPageServlet extends HttpServlet {
                                 session.setAttribute("credit", result);
                         }
                 }
+                clearPendingTransfer(session);
                 res.sendRedirect("/transfer");
+        }
+
+        private void clearPendingTransfer(HttpSession session) {
+                session.removeAttribute(PENDING_TRANSFER_TO);
+                session.removeAttribute(PENDING_TRANSFER_AMOUNT);
         }
 
         private int parseIntOrZero(String value) {
