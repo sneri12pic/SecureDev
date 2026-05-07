@@ -7,11 +7,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
-/**
- * Coursework 2 additional vulnerability: Missing Authentication for Critical
- * Function (CWE-306). This servlet is intentionally vulnerable for Part 2
- * because it allows password reset without checking for a logged-in admin.
- */
+// Administrative servlet for resetting user passwords. Only accessible to admin users.
 public class AdminPasswordResetServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException, ServletException {
