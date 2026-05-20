@@ -1,4 +1,4 @@
-# SecureDev Coursework 2
+# SecureDev Coursework
 
 Secure Software Development coursework based on the BankWebsite application.
 
