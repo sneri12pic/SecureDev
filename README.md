@@ -32,21 +32,26 @@ attacks demonstrated in the coursework report.
 |-- LICENSE
 `-- README.md
 ```
-## Demo
-In addition to these required fixes, I also implemented new application features that intentionally introduced security vulnerabilities. These were added so I could demonstrate how realistic security issues can appear in normal-looking functionality. The two additional vulnerabilities were:
 
-Hidden form field trust / parameter tampering in the transfer confirmation flow
-Missing authentication for a critical admin password reset function
+## Demo Overview
 
-For each vulnerability, the demo follows the same process:
+In addition to the required vulnerability mitigations, I also implemented two new application features that intentionally introduced security weaknesses. The purpose of this was to show how realistic vulnerabilities can appear inside normal-looking functionality, and then demonstrate how those issues can be exploited, fixed, and re-tested.
 
-Show the feature working normally
-Demonstrate how the vulnerability can be exploited
-Apply a secure fix
-Re-test the same attack to prove that the vulnerability has been mitigated
-Confirm that the intended application functionality still works
+The two additional vulnerabilities demonstrated in the demo are:
 
-The purpose of the demo is to show that the fixes address the root cause of each vulnerability, rather than only blocking one specific payload or attack attempt.
+* **Hidden Form Field Trust / Parameter Tampering** in the transfer confirmation flow
+* **Missing Authentication for a Critical Function** in the admin password reset feature
+
+For each vulnerability, the demo follows the same structure:
+
+1. Show the feature working as intended under normal use
+2. Demonstrate how the vulnerability can be exploited
+3. Apply a secure fix that addresses the root cause
+4. Re-test the same attack to prove the vulnerability has been mitigated
+5. Confirm that the original application functionality still works correctly
+
+The main goal of the demo is to show that the mitigations do more than block a single payload or attack attempt. Instead, they remove the underlying security flaw while preserving the intended behaviour of the application.
+
 
 https://github.com/user-attachments/assets/f9e23ed9-dc71-4daf-ada4-493ef44a91e6
 
