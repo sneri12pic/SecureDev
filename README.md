@@ -33,6 +33,20 @@ attacks demonstrated in the coursework report.
 `-- README.md
 ```
 ## Demo
+In addition to these required fixes, I also implemented new application features that intentionally introduced security vulnerabilities. These were added so I could demonstrate how realistic security issues can appear in normal-looking functionality. The two additional vulnerabilities were:
+
+Hidden form field trust / parameter tampering in the transfer confirmation flow
+Missing authentication for a critical admin password reset function
+
+For each vulnerability, the demo follows the same process:
+
+Show the feature working normally
+Demonstrate how the vulnerability can be exploited
+Apply a secure fix
+Re-test the same attack to prove that the vulnerability has been mitigated
+Confirm that the intended application functionality still works
+
+The purpose of the demo is to show that the fixes address the root cause of each vulnerability, rather than only blocking one specific payload or attack attempt.
 
 https://github.com/user-attachments/assets/f9e23ed9-dc71-4daf-ada4-493ef44a91e6
 
